@@ -25,6 +25,11 @@ test("explain: names the favourites that seeded the pick", () => {
   assert.equal(r.text, "Strong fit for Ada (82%). Linked to their love of Fake Film One and Fake Film Three.");
 });
 
+test("explain: a low-fit seeded pick is described as a loose link", () => {
+  const r = explain(ent("pick", [], ["f1"]), { name: "Zainab", score: 0.2 }, [fav("Fake Cafe", ent("f1"))]);
+  assert.equal(r.text, "Less of a fit for Zainab (20%). Only a loose link to their love of Fake Cafe.");
+});
+
 test("explain: falls back to shared tags and lists the favourites behind them", () => {
   const pick = ent("pick", [
     ["t:spicy", "Spicy"],

@@ -67,7 +67,10 @@ export function explain(
   const seedIds = new Set(pick.seeds ?? []);
   const seeded = found.filter((f) => f.entity && seedIds.has(f.entity.id)).map((f) => f.input);
   if (seeded.length) {
-    return { person: person.name, score, band, text: `${head} Linked to their love of ${listNames(seeded.slice(0, 3))}.` };
+    const names = listNames(seeded.slice(0, 3));
+    const because =
+      band === "stretch" ? `Only a loose link to their love of ${names}.` : `Linked to their love of ${names}.`;
+    return { person: person.name, score, band, text: `${head} ${because}` };
   }
 
   // 2. Shared tags between the pick and their favourites.
