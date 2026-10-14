@@ -45,8 +45,8 @@ function tagKey(t: QlooTag): string {
 export function explain(
   pick: Pick<QlooEntity, "id" | "name" | "tags" | "seeds">,
   person: { name: string; score: number },
-  favourites: ResolvedFavourite[],
-  ignoreTagIds: string[] = [],
+  favourites: readonly ResolvedFavourite[],
+  ignoreTagIds: readonly string[] = [],
 ): Reason {
   const score = Math.max(0, Math.min(1, Number.isFinite(person.score) ? person.score : 0));
   const band = fitBand(score);
