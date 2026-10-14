@@ -241,13 +241,13 @@ export async function findTagsStep(session: PlanSession, keyword: string): Promi
 }
 
 /** Compact view of picks for the LLM: enough to write the plan, nothing more. */
-export function picksForModel(result: GroupPicksResult) {
+export function picksForModel(result: GroupPicksResult, limit = result.picks.length) {
   return {
     kind: result.kind,
     city: result.city ?? null,
     unscored: result.unscored,
     notes: result.notes,
-    picks: result.picks.map((p, i) => ({
+    picks: result.picks.slice(0, limit).map((p, i) => ({
       rank: i + 1,
       name: p.name,
       address: p.address ?? null,
