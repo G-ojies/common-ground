@@ -3,7 +3,7 @@
  * Tools are thin wrappers over planner.ts, which records every step.
  */
 import { createGroq } from "@ai-sdk/groq";
-import { generateText, tool } from "ai";
+import { generateText, tool, type LanguageModelV1 } from "ai";
 import { z } from "zod";
 import type { Group } from "./group-input";
 import { ENTITY_TYPES, FAVOURITE_KINDS, OUTING_SPECS } from "./outing";
@@ -133,16 +133,23 @@ export function hasLlm(): boolean {
   return Boolean(process.env.GROQ_API_KEY?.trim());
 }
 
-export async function runPlan(group: Group): Promise<AgentRun> {
+function groqModel(): LanguageModelV1 {
+  const groq = createGroq({ apiKey: process.env.GROQ_API_KEY!.trim() });
+  return groq(process.env.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL);
+}
+
+/**
+ * Plan an outing. Uses the Groq agent when GROQ_API_KEY is set (or a model is
+ * injected, as in tests); otherwise builds a deterministic plan from the data.
+ */
+export async function runPlan(group: Group, opts: { model?: LanguageModelV1 } = {}): Promise<AgentRun> {
   const session = new PlanSession(group);
   const notes: string[] = [];
 
-  if (hasLlm()) {
+  if (opts.model || hasLlm()) {
     try {
-      const groq = createGroq({ apiKey: process.env.GROQ_API_KEY!.trim() });
-      const model = process.env.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL;
       const { text } = await generateText({
-        model: groq(model),
+        model: opts.model ?? groqModel(),
         system: SYSTEM_PROMPT,
         prompt: groupBlock(group),
         tools: buildTools(session),
