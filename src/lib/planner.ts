@@ -84,7 +84,12 @@ export async function resolveFavourites(
     list.map(async (f) => {
       try {
         const kinds = f.kind ? [f.kind as EntityKind] : DEFAULT_SEARCH_KINDS;
-        const results = await searchEntities(f.name, kinds, 5);
+        // One retry: a dropped request should not read as "not on Qloo".
+        const results = await searchEntities(f.name, kinds, 5).catch(async (err) => {
+          if (err instanceof QlooError && err.status === 401) throw err;
+          await new Promise((r) => setTimeout(r, 400));
+          return searchEntities(f.name, kinds, 5);
+        });
         return { input: f.name, entity: bestMatch(f.name, results) };
       } catch (err) {
         if (err instanceof QlooError && err.status === 401) throw err;
