@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { PlanSession, findGroupPicks, resolveFavourites, runDeterministicPlan, findTagsStep } from "../src/lib/planner";
+import { PlanSession, findGroupPicks, priceFromVibe, resolveFavourites, runDeterministicPlan, findTagsStep } from "../src/lib/planner";
 import { isMockMode } from "../src/lib/qloo";
 import { mockInsights, mockSearch } from "../src/lib/qloo-mock";
 import { EXAMPLE_GROUP } from "../src/lib/example";
@@ -79,4 +79,12 @@ test("findTagsStep returns mock tags", async () => {
   const s = exampleSession();
   const tags = await findTagsStep(s, "spicy");
   assert.deepEqual(tags.map((t) => t.id), ["urn:tag:mock:spicy"]);
+});
+
+test("priceFromVibe reads a budget from the vibe in code", () => {
+  assert.deepEqual(priceFromVibe("Affordable, somewhere we can talk after exams"), { max: 2 });
+  assert.deepEqual(priceFromVibe("cheap eats, we're students"), { max: 2 });
+  assert.deepEqual(priceFromVibe("Somewhere upscale for a birthday"), { min: 3 });
+  assert.equal(priceFromVibe("Lively, with music"), null);
+  assert.equal(priceFromVibe(undefined), null);
 });

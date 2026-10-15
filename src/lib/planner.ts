@@ -123,18 +123,41 @@ export type FindPicksArgs = {
 
 const PER_PERSON_TAKE = 30;
 
+export type PriceRange = { min?: number; max?: number };
+
+/**
+ * Read a budget from the group's vibe, in code rather than by the model, so
+ * "cheap after exams" never comes back with a casino. Qloo price levels run 1 to 4.
+ */
+export function priceFromVibe(vibe: string | null | undefined): PriceRange | null {
+  const v = (vibe ?? "").toLowerCase();
+  if (/\b(cheap|affordable|budget|inexpensive|low[- ]cost|student|broke|not too expensive)\b/.test(v)) return { max: 2 };
+  if (/\b(upscale|fancy|luxury|luxurious|fine dining|splurge|high[- ]end|classy)\b/.test(v)) return { min: 3 };
+  return null;
+}
+
 async function insightsWithFallback(
-  args: { kind: EntityKind; entityIds: string[]; city?: string | null; tags: string[]; take: number },
+  args: { kind: EntityKind; entityIds: string[]; city?: string | null; tags: string[]; take: number; price?: PriceRange | null },
   notes: string[],
 ): Promise<QlooEntity[]> {
-  const list = await getInsights({ ...args, explain: true });
-  if (list.length || !args.tags.length) return list;
+  const { price, ...rest } = args;
+  const query = { ...rest, priceMin: price?.min ?? null, priceMax: price?.max ?? null, explain: true };
+  const list = await getInsights(query);
+  if (list.length || (!args.tags.length && !price)) return list;
   // 200 with no entities usually means the tag filter does not fit this type.
-  const retry = await getInsights({ ...args, tags: [], explain: true });
-  if (retry.length && !notes.some((n) => n.startsWith("The tag filter"))) {
-    notes.push("The tag filter returned nothing, so it was dropped.");
+  if (args.tags.length) {
+    const noTags = await getInsights({ ...query, tags: [] });
+    if (noTags.length) {
+      if (!notes.some((n) => n.startsWith("The tag filter"))) notes.push("The tag filter returned nothing, so it was dropped.");
+      return noTags;
+    }
   }
-  return retry;
+  if (!price) return [];
+  const noPrice = await getInsights({ ...query, tags: [], priceMin: null, priceMax: null });
+  if (noPrice.length && !notes.some((n) => n.startsWith("Nothing matched the budget"))) {
+    notes.push("Nothing matched the budget, so places at any price are shown.");
+  }
+  return noPrice;
 }
 
 export async function findGroupPicks(session: PlanSession, args: FindPicksArgs): Promise<GroupPicksResult> {
@@ -144,6 +167,7 @@ export async function findGroupPicks(session: PlanSession, args: FindPicksArgs):
   const city = usesCity ? (args.city?.trim() || session.group.city || null) : null;
   const tags = (args.tags ?? []).map((t) => t.trim()).filter(Boolean).slice(0, 5);
   const take = Math.max(1, Math.min(10, args.take ?? 5));
+  const price = usesCity ? priceFromVibe(session.group.vibe) : null;
   const notes: string[] = [];
   if (isMockMode()) notes.push("Running on mock data: names and scores are invented for the demo.");
 
@@ -166,8 +190,8 @@ export async function findGroupPicks(session: PlanSession, args: FindPicksArgs):
   const allIds = [...new Set(scorable.flatMap(idsFor))].slice(0, 25);
 
   const [perPersonLists, crowdList] = await Promise.all([
-    Promise.all(scorable.map((p) => insightsWithFallback({ kind, entityIds: idsFor(p), city, tags, take: PER_PERSON_TAKE }, notes))),
-    insightsWithFallback({ kind, entityIds: allIds, city, tags, take: 50 }, notes).catch(() => [] as QlooEntity[]),
+    Promise.all(scorable.map((p) => insightsWithFallback({ kind, entityIds: idsFor(p), city, tags, take: PER_PERSON_TAKE, price }, notes))),
+    insightsWithFallback({ kind, entityIds: allIds, city, tags, take: 50, price }, notes).catch(() => [] as QlooEntity[]),
   ]);
 
   const candidatesById = new Map<string, QlooEntity>();

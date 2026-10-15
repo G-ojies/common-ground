@@ -115,6 +115,9 @@ export type InsightsOptions = {
   tags?: string[] | null;
   take?: number | null;
   explain?: boolean;
+  /** Qloo price level bounds for places, 1 (cheapest) to 4. */
+  priceMin?: number | null;
+  priceMax?: number | null;
 };
 
 export async function getInsights(opts: InsightsOptions): Promise<QlooEntity[]> {
@@ -124,6 +127,8 @@ export async function getInsights(opts: InsightsOptions): Promise<QlooEntity[]> 
   if (opts.city) params.set("filter.location.query", opts.city);
   if (opts.city && opts.radiusMeters) params.set("filter.location.radius", String(Math.round(opts.radiusMeters)));
   if (opts.tags?.length) params.set("filter.tags", opts.tags.join(","));
+  if (opts.priceMin) params.set("filter.price_level.min", String(opts.priceMin));
+  if (opts.priceMax) params.set("filter.price_level.max", String(opts.priceMax));
   params.set("take", String(Math.max(1, Math.min(50, opts.take ?? 20))));
   if (opts.explain) params.set("feature.explainability", "true");
   return parseInsightsResponse(await qlooGet("/v2/insights", params));

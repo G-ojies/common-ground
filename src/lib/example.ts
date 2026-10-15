@@ -1,4 +1,4 @@
-/** The "Try an example" group: three friends in Lagos planning dinner. */
+/** The "Try an example" group: three friends in Lagos planning dinner. Real names, so it resolves against live Qloo data. */
 export const EXAMPLE_GROUP = {
   outing: "dinner",
   city: "Lagos",
@@ -8,24 +8,24 @@ export const EXAMPLE_GROUP = {
       name: "Ada",
       favourites: [
         { name: "Burna Boy", kind: "artist" },
-        { name: "Mock Jollof House", kind: "place" },
-        { name: "Love on Allen Avenue", kind: "book" },
+        { name: "Things Fall Apart", kind: "book" },
+        { name: "Terra Kulture", kind: "place" },
       ],
     },
     {
       name: "Tunde",
       favourites: [
-        { name: "Spicy street suya", kind: "place" },
-        { name: "Owambe Nights", kind: "movie" },
-        { name: "Amapiano Collective", kind: "artist" },
+        { name: "Wizkid", kind: "artist" },
+        { name: "King of Boys", kind: "movie" },
+        { name: "Yellow Chilli", kind: "place" },
       ],
     },
     {
       name: "Zainab",
       favourites: [
-        { name: "Quiet Kitchen", kind: "movie" },
-        { name: "Highlife Revival Band", kind: "artist" },
-        { name: "Garden Cafe", kind: "place" },
+        { name: "Tems", kind: "artist" },
+        { name: "Half of a Yellow Sun", kind: "book" },
+        { name: "Nok by Alara", kind: "place" },
       ],
     },
   ],
