@@ -16,7 +16,9 @@ anywhere.
    Anything Qloo cannot find is reported plainly.
 2. **Ask Qloo per person.** For the chosen outing type (for example `urn:entity:place` for dinner, with the city),
    the agent calls `/v2/insights` once per person, using only that person's favourites as signals. Each person's
-   affinities are scaled to 0..1 within their own list.
+   affinities are scaled to 0..1 within their own list. A budget in the vibe is read in code, not by the model:
+   "cheap", "affordable" or "student" sets Qloo's `filter.price_level.max=2`, and "upscale" or "fine dining" sets
+   `filter.price_level.min=3`. If nothing matches the budget, places at any price are shown, with a note.
 3. **Rank by group fit.** The candidates are the union of everyone's lists. For each candidate we read every
    person's score (missing = 0) and rank by the **lowest** score in the group first, then by the average. A pick that
    one person loves and another would hate ranks below a pick everyone likes well enough. People below a threshold
