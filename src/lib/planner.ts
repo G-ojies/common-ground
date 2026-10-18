@@ -314,7 +314,8 @@ export function picksForModel(result: GroupPicksResult, limit = result.picks.len
       rank: i + 1,
       name: p.name,
       address: p.address ?? null,
-      rating: p.rating ?? null,
+      // Qloo ratings arrive as floats like 4.099999904632568; the model copies them as given.
+      rating: p.rating !== undefined ? Math.round(p.rating * 10) / 10 : null,
       group_fit_pct: Math.round(p.groupScore * 100),
       average_fit_pct: Math.round(p.meanScore * 100),
       left_out: p.leftOut,
