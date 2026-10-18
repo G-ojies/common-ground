@@ -7,6 +7,8 @@ Qloo Taste AI API to find the restaurant, film, artist, book or destination the 
 the options by group fit, and explains to each person, in plain English, why a pick suits them. It also flags anyone
 a pick might suit less, so nobody gets quietly left out.
 
+Live: https://common-ground-gold.vercel.app · Demo video: https://youtu.be/Cs1S59lCyTY
+
 It was designed with Nigerian students in mind (the example is three friends in Lagos), but it works for any group,
 anywhere.
 
