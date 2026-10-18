@@ -271,8 +271,14 @@ export function mockInsights(params: URLSearchParams) {
     .filter(Boolean);
   const take = Math.max(1, Math.min(50, Number(params.get("take")) || 20));
   const explain = params.get("feature.explainability") === "true";
+  const onlyIds = new Set(
+    (params.get("filter.results.entities") ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
 
-  let pool = MOCK_ENTITIES.filter((e) => e.kind === kind);
+  let pool = MOCK_ENTITIES.filter((e) => e.kind === kind && (!onlyIds.size || onlyIds.has(e.id)));
   if (pool.length === 0) return { success: true, results: { entities: [] } };
 
   if (city) {
@@ -300,7 +306,8 @@ export function mockInsights(params: URLSearchParams) {
     return { e, overlap, affinity, seeds };
   });
 
-  const useful = signals.length ? scored.filter((s) => s.overlap > 0) : scored;
+  // Pinned ids are always scored, like Qloo does, even with no overlap.
+  const useful = signals.length && !onlyIds.size ? scored.filter((s) => s.overlap > 0) : scored;
   useful.sort((a, b) => b.affinity - a.affinity);
 
   return {

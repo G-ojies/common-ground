@@ -88,3 +88,36 @@ test("priceFromVibe reads a budget from the vibe in code", () => {
   assert.equal(priceFromVibe("Lively, with music"), null);
   assert.equal(priceFromVibe(undefined), null);
 });
+
+function movieSession() {
+  const parsed = parseGroup({
+    outing: "movie",
+    people: [
+      { name: "Ada", favourites: [{ name: "Mock Movie: Quiet Kitchen", kind: "movie" }] },
+      { name: "Tunde", favourites: [{ name: "Mock Movie: Harmattan Haunting", kind: "movie" }] },
+    ],
+  });
+  if (!parsed.ok) throw new Error("movie group is invalid");
+  return new PlanSession(parsed.group);
+}
+
+test("mock insights score pinned ids even with no taste overlap", () => {
+  const r = mockInsights(
+    new URLSearchParams({
+      "filter.type": "urn:entity:movie",
+      "signal.interests.entities": "mock-movie-5",
+      "filter.results.entities": "mock-movie-9,mock-movie-1",
+    }),
+  );
+  assert.deepEqual(r.results.entities.map((e) => e.entity_id).sort(), ["mock-movie-1", "mock-movie-9"]);
+});
+
+test("findGroupPicks never suggests a favourite back and scores every pick for everyone", async () => {
+  const s = movieSession();
+  const r = await findGroupPicks(s, { kind: "movie", take: 10 });
+  assert.ok(r.picks.length > 0);
+  const ids = r.picks.map((p) => p.id);
+  assert.ok(!ids.includes("mock-movie-5") && !ids.includes("mock-movie-9"), "favourites are not picks");
+  // Tastes barely overlap, yet each pick has a real fit for both people, not a 0 for whoever's list it missed.
+  for (const p of r.picks) for (const fit of p.perPerson) assert.ok(fit.score > 0, `${fit.person} scored on ${p.name}`);
+});

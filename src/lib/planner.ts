@@ -126,7 +126,10 @@ export type FindPicksArgs = {
   take?: number | null;
 };
 
-const PER_PERSON_TAKE = 30;
+const PER_PERSON_TAKE = 15;
+const CROWD_TAKE = 15;
+/** Most candidates scored for everyone: one pinned Qloo call per person. */
+const POOL_MAX = 50;
 
 export type PriceRange = { min?: number; max?: number };
 
@@ -196,25 +199,56 @@ export async function findGroupPicks(session: PlanSession, args: FindPicksArgs):
 
   const [perPersonLists, crowdList] = await Promise.all([
     Promise.all(scorable.map((p) => insightsWithFallback({ kind, entityIds: idsFor(p), city, tags, take: PER_PERSON_TAKE, price }, notes))),
-    insightsWithFallback({ kind, entityIds: allIds, city, tags, take: 50, price }, notes).catch(() => [] as QlooEntity[]),
+    insightsWithFallback({ kind, entityIds: allIds, city, tags, take: CROWD_TAKE, price }, notes).catch(() => [] as QlooEntity[]),
   ]);
 
+  // One shared pool. The group's own favourites are left out: suggesting a
+  // film someone already named is no help.
+  const favouriteIds = new Set(scorable.flatMap(idsFor));
   const candidatesById = new Map<string, QlooEntity>();
-  const seedsById = new Map<string, Set<string>>();
   for (const list of [...perPersonLists, crowdList]) {
     for (const e of list) {
-      if (!candidatesById.has(e.id)) candidatesById.set(e.id, e);
-      if (e.seeds?.length) {
-        const s = seedsById.get(e.id) ?? new Set<string>();
-        e.seeds.forEach((x) => s.add(x));
-        seedsById.set(e.id, s);
-      }
+      if (!favouriteIds.has(e.id) && !candidatesById.has(e.id) && candidatesById.size < POOL_MAX) candidatesById.set(e.id, e);
+    }
+  }
+
+  // Each person's own list only covers their top results, so a pick from a
+  // friend's list would score 0 for them. Ask Qloo to score the rest of the
+  // pool against that person's favourites too, so every fit is a real number.
+  const affinityLists: QlooEntity[][] = await Promise.all(
+    scorable.map(async (p, i) => {
+      const own = perPersonLists[i].filter((e) => candidatesById.has(e.id));
+      const missing = [...candidatesById.keys()].filter((id) => !own.some((e) => e.id === id));
+      if (!missing.length) return own;
+      const query = { kind, entityIds: idsFor(p), onlyIds: missing, take: missing.length, explain: true };
+      // One retry, as for search: a dropped request should not read as a poor fit.
+      const filled = await getInsights(query)
+        .catch(async (err) => {
+          if (err instanceof QlooError && err.status === 401) throw err;
+          await new Promise((r) => setTimeout(r, 400));
+          return getInsights(query);
+        })
+        .catch(() => {
+          if (!notes.some((n) => n.startsWith("Some fits"))) notes.push("Some fits could not be checked with Qloo, so they count as 0.");
+          return [] as QlooEntity[];
+        });
+      return [...own, ...filled.filter((e) => candidatesById.has(e.id) && !own.some((o) => o.id === e.id))];
+    }),
+  );
+
+  const seedsById = new Map<string, Set<string>>();
+  for (const list of [...affinityLists, crowdList]) {
+    for (const e of list) {
+      if (!e.seeds?.length) continue;
+      const s = seedsById.get(e.id) ?? new Set<string>();
+      e.seeds.forEach((x) => s.add(x));
+      seedsById.set(e.id, s);
     }
   }
 
   const perPersonScores: PersonScores[] = scorable.map((p, i) => ({
     person: p.name,
-    scores: normaliseScores(perPersonLists[i].map((e) => ({ id: e.id, affinity: e.affinity }))),
+    scores: normaliseScores(affinityLists[i].map((e) => ({ id: e.id, affinity: e.affinity }))),
   }));
   const crowdScores = normaliseScores(crowdList.map((e) => ({ id: e.id, affinity: e.affinity })));
 

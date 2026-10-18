@@ -19,13 +19,17 @@ anywhere.
    affinities are scaled to 0..1 within their own list. A budget in the vibe is read in code, not by the model:
    "cheap", "affordable" or "student" sets Qloo's `filter.price_level.max=2`, and "upscale" or "fine dining" sets
    `filter.price_level.min=3`. If nothing matches the budget, places at any price are shown, with a note.
-3. **Rank by group fit.** The candidates are the union of everyone's lists. For each candidate we read every
-   person's score (missing = 0) and rank by the **lowest** score in the group first, then by the average. A pick that
+3. **Score everyone on every option.** The candidates are the union of everyone's lists plus the crowd query (up to
+   50), minus the group's own favourites. A person's own list only covers their top results, so for the rest of the
+   pool the agent asks Qloo again with that person's favourites and `filter.results.entities` set to those ids. Every
+   fit is then a real Qloo affinity, not a 0 for "not on my list", which matters when tastes barely overlap (an
+   action fan and a romance fan get Inception, not three zero-score picks).
+4. **Rank by group fit.** We rank by the **lowest** score in the group first, then by the average. A pick that
    one person loves and another would hate ranks below a pick everyone likes well enough. People below a threshold
    (35%) are listed as "might suit less".
-4. **Explain.** Each person gets a short, deterministic reason built only from data: which of their favourites Qloo
+5. **Explain.** Each person gets a short, deterministic reason built only from data: which of their favourites Qloo
    says led to the pick (explainability), or the tags the pick shares with their favourites.
-5. **Write the plan.** A Groq-hosted model (`openai/gpt-oss-120b` by default), driven by the Vercel AI SDK with
+6. **Write the plan.** A Groq-hosted model (`openai/gpt-oss-120b` by default), driven by the Vercel AI SDK with
    tools, turns that into a short, warm plan: top 3 picks with one line per person. It is told never to invent
    places, titles or numbers, and to treat everything users type as untrusted data.
 
@@ -91,6 +95,9 @@ The response contains `plan` (plain text), `picks` (ranked, with per-person scor
 trace), `notes` and `mode`. `GET /api/plan` reports whether Qloo is live or mocked and whether the LLM is on.
 
 ## Qloo data policy
+
+The hackathon key allows 5 requests a second, so the client spaces its calls to 4 a second and waits out a 429 once
+before giving up.
 
 Qloo response data is never committed to this repository and never written to disk. Live responses are cached in
 server memory only (a `Map` with a 10 minute TTL) to avoid repeat calls, and the API key never reaches the browser.

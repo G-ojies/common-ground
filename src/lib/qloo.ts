@@ -20,6 +20,8 @@ export const DEFAULT_QLOO_BASE_URL = "https://hackathon.api.qloo.com";
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_MAX = 500;
 const TIMEOUT_MS = 12_000;
+/** The hackathon key allows 5 requests a second; stay just under it. */
+const MAX_PER_SECOND = 4;
 
 export class QlooError extends Error {
   constructor(
@@ -69,6 +71,21 @@ function friendlyError(status: number, path: string): string {
   return `Qloo request to ${path} failed with status ${status}.`;
 }
 
+const recentStarts: number[] = [];
+
+/** Wait until a request can start without passing MAX_PER_SECOND in any one-second window. */
+async function rateSlot(): Promise<void> {
+  for (;;) {
+    const now = Date.now();
+    while (recentStarts.length && now - recentStarts[0] >= 1000) recentStarts.shift();
+    if (recentStarts.length < MAX_PER_SECOND) {
+      recentStarts.push(now);
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 1000 - (now - recentStarts[0]) + 5));
+  }
+}
+
 async function qlooGet(path: string, params: URLSearchParams): Promise<unknown> {
   params.sort();
   if (isMockMode()) return mockRequest(path, params);
@@ -80,12 +97,21 @@ async function qlooGet(path: string, params: URLSearchParams): Promise<unknown> 
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
+  const send = async () => {
+    await rateSlot();
+    return fetch(url, {
       headers: { "X-Api-Key": process.env.QLOO_API_KEY!.trim(), Accept: "application/json" },
       signal: controller.signal,
       cache: "no-store",
     });
+  };
+  try {
+    let res = await send();
+    // Another instance may share the key's per-second budget: wait out the window once.
+    if (res.status === 429) {
+      await new Promise((r) => setTimeout(r, 1100));
+      res = await send();
+    }
     if (!res.ok) throw new QlooError(friendlyError(res.status, path), res.status);
     const json = (await res.json()) as unknown;
     cacheSet(url, json);
@@ -118,6 +144,8 @@ export type InsightsOptions = {
   /** Qloo price level bounds for places, 1 (cheapest) to 4. */
   priceMin?: number | null;
   priceMax?: number | null;
+  /** Score only these entity ids (Qloo `filter.results.entities`). */
+  onlyIds?: string[] | null;
 };
 
 export async function getInsights(opts: InsightsOptions): Promise<QlooEntity[]> {
@@ -129,6 +157,7 @@ export async function getInsights(opts: InsightsOptions): Promise<QlooEntity[]> 
   if (opts.tags?.length) params.set("filter.tags", opts.tags.join(","));
   if (opts.priceMin) params.set("filter.price_level.min", String(opts.priceMin));
   if (opts.priceMax) params.set("filter.price_level.max", String(opts.priceMax));
+  if (opts.onlyIds?.length) params.set("filter.results.entities", opts.onlyIds.join(","));
   params.set("take", String(Math.max(1, Math.min(50, opts.take ?? 20))));
   if (opts.explain) params.set("feature.explainability", "true");
   return parseInsightsResponse(await qlooGet("/v2/insights", params));
